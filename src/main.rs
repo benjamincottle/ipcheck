@@ -1,5 +1,5 @@
-use env_logger;
 use dotenv::dotenv;
+use env_logger;
 use log;
 use std::{env, io::Cursor, sync::Arc, thread};
 use tiny_http::{Request, Response, Server};
@@ -8,7 +8,9 @@ fn request_is_authorised(request: &Request) -> bool {
     let api_key = request.headers().iter().find(|h| h.field.equiv("API_KEY"));
     match api_key {
         Some(api_key) => {
-            if api_key.value == env::var("API_KEY").expect("API_KEY environment variable not set") {
+            if api_key.value
+                == env::var("API_KEY").expect("[Error] API_KEY environment variable not set")
+            {
                 true
             } else {
                 false
@@ -47,7 +49,7 @@ fn log_request(request: &tiny_http::Request, status: u16, size: usize) {
 fn main() {
     dotenv().ok();
     env_logger::init();
-    let server = Server::http("0.0.0.0:8000").expect("Could not start server");
+    let server = Server::http("0.0.0.0:5000").expect("[Error] Could not start server");
     let server = Arc::new(server);
 
     for _ in 0..4 {
@@ -56,30 +58,35 @@ fn main() {
             let request = match server.recv() {
                 Ok(r) => r,
                 Err(e) => {
-                    log::error!("Could not receive request: {}", e);
+                    log::error!("[Error] Could not receive request: {}", e);
                     continue;
                 }
             };
 
             let response = if !request_is_authorised(&request) {
-                let _401 = b"{\n    \"status\": 401,\n    \"message\": \"not authorised\"\n}\n";
                 let response = Response::new(
                     tiny_http::StatusCode(401),
                     vec![],
-                    Cursor::new(_401.to_vec()),
-                    Some(_401.len() as usize),
+                    Cursor::new(vec![]),
+                    None,
                     None,
                 );
                 log_request(&request, 401, response.data_length().unwrap_or(0));
                 response
             } else {
-                let response = Response::from_string(format!("{:#?}", request.headers()));
+                let x_forwarded_for = request
+                    .headers()
+                    .iter()
+                    .find(|header| header.field.equiv("X-Forwarded-For"))
+                    .map(|header| header.value.to_string())
+                    .unwrap_or("".to_string());
+                let response = Response::from_string(x_forwarded_for);
                 log_request(&request, 200, response.data_length().unwrap_or(0));
                 response
             };
 
             if let Err(e) = request.respond(response) {
-                log::error!("Could not send response: {}", e);
+                log::error!("[Error] Could not send response: {}", e);
             }
         });
     }
