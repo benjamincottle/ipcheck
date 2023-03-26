@@ -49,6 +49,10 @@ fn log_request(request: &tiny_http::Request, status: u16, size: usize) {
 fn main() {
     dotenv().ok();
     env_logger::init();
+    if env::var("API_KEY").is_err() {
+        log::error!("[Error] API_KEY environment variable not set");
+        return;
+    }
     let server = Server::http("0.0.0.0:5000").expect("[Error] Could not start server");
     let server = Arc::new(server);
 
