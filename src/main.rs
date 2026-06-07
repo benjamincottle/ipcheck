@@ -1,4 +1,3 @@
-use dotenv::dotenv;
 use env_logger;
 use log;
 use std::{env, io::Cursor, sync::Arc, thread};
@@ -8,9 +7,7 @@ fn request_is_authorised(request: &Request) -> bool {
     let api_key = request.headers().iter().find(|h| h.field.equiv("API_KEY"));
     match api_key {
         Some(api_key) => {
-            if api_key.value
-                == env::var("API_KEY").expect("[Error] API_KEY environment variable not set")
-            {
+            if api_key.value == env::var("API_KEY").expect("[Error] API_KEY environment variable not set") {
                 true
             } else {
                 false
@@ -47,7 +44,6 @@ fn log_request(request: &tiny_http::Request, status: u16, size: usize) {
 }
 
 fn main() {
-    dotenv().ok();
     env_logger::init();
     if env::var("API_KEY").is_err() {
         log::error!("[Error] API_KEY environment variable not set");
@@ -86,7 +82,7 @@ fn main() {
                     .unwrap_or("".to_string());
                 let response = Response::from_string(x_forwarded_for);
                 log_request(&request, 200, response.data_length().unwrap_or(0));
-                response
+                response 
             };
 
             if let Err(e) = request.respond(response) {
