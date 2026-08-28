@@ -18,7 +18,6 @@ fn request_is_authorised(request: &Request) -> bool {
 }
 
 fn log_request(request: &tiny_http::Request, status: u16, size: usize) {
-    let remote_addr = request.remote_addr().unwrap().ip();
     let date_time = chrono::Local::now().format("%d/%b/%Y:%H:%M:%S %z");
     let method = request.method();
     let uri = request.url();
@@ -37,9 +36,15 @@ fn log_request(request: &tiny_http::Request, status: u16, size: usize) {
         .find(|header| header.field.equiv("User-Agent"))
         .map(|header| header.value.to_string())
         .unwrap_or("-".to_string());
+    let x_forwarded_for = request
+        .headers()
+        .iter()
+        .find(|header| header.field.equiv("X-Forwarded-For"))
+        .map(|header| header.value.to_string())
+        .unwrap_or("-".to_string());
     println!(
         "{} [{}] \"{} {} {}\" {} {} \"{}\" \"{}\"",
-        remote_addr, date_time, method, uri, protocol, status, size, referer, user_agent
+        x_forwarded_for, date_time, method, uri, protocol, status, size, referer, user_agent
     );
 }
 
