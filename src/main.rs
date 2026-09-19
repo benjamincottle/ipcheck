@@ -1,5 +1,3 @@
-use env_logger;
-use log;
 use std::{env, io::Cursor, sync::Arc, thread};
 use tiny_http::{Request, Response, Server};
 
@@ -7,11 +5,8 @@ fn request_is_authorised(request: &Request) -> bool {
     let api_key = request.headers().iter().find(|h| h.field.equiv("API_KEY"));
     match api_key {
         Some(api_key) => {
-            if api_key.value == env::var("API_KEY").expect("[Error] API_KEY environment variable not set") {
-                true
-            } else {
-                false
-            }
+            api_key.value
+                == env::var("API_KEY").expect("[Error] API_KEY environment variable not set")
         }
         None => false,
     }
@@ -22,8 +17,6 @@ fn log_request(request: &tiny_http::Request, status: u16, size: usize) {
     let method = request.method();
     let uri = request.url();
     let protocol = request.http_version();
-    let status = status;
-    let size = size;
     let referer = request
         .headers()
         .iter()
@@ -59,39 +52,41 @@ fn main() {
 
     for _ in 0..4 {
         let server = server.clone();
-        thread::spawn(move || loop {
-            let request = match server.recv() {
-                Ok(r) => r,
-                Err(e) => {
-                    log::error!("[Error] Could not receive request: {}", e);
-                    continue;
+        thread::spawn(move || {
+            loop {
+                let request = match server.recv() {
+                    Ok(r) => r,
+                    Err(e) => {
+                        log::error!("[Error] Could not receive request: {}", e);
+                        continue;
+                    }
+                };
+
+                let response = if !request_is_authorised(&request) {
+                    let response = Response::new(
+                        tiny_http::StatusCode(401),
+                        vec![],
+                        Cursor::new(vec![]),
+                        None,
+                        None,
+                    );
+                    log_request(&request, 401, response.data_length().unwrap_or(0));
+                    response
+                } else {
+                    let x_forwarded_for = request
+                        .headers()
+                        .iter()
+                        .find(|header| header.field.equiv("X-Forwarded-For"))
+                        .map(|header| header.value.to_string())
+                        .unwrap_or("".to_string());
+                    let response = Response::from_string(x_forwarded_for);
+                    log_request(&request, 200, response.data_length().unwrap_or(0));
+                    response
+                };
+
+                if let Err(e) = request.respond(response) {
+                    log::error!("[Error] Could not send response: {}", e);
                 }
-            };
-
-            let response = if !request_is_authorised(&request) {
-                let response = Response::new(
-                    tiny_http::StatusCode(401),
-                    vec![],
-                    Cursor::new(vec![]),
-                    None,
-                    None,
-                );
-                log_request(&request, 401, response.data_length().unwrap_or(0));
-                response
-            } else {
-                let x_forwarded_for = request
-                    .headers()
-                    .iter()
-                    .find(|header| header.field.equiv("X-Forwarded-For"))
-                    .map(|header| header.value.to_string())
-                    .unwrap_or("".to_string());
-                let response = Response::from_string(x_forwarded_for);
-                log_request(&request, 200, response.data_length().unwrap_or(0));
-                response 
-            };
-
-            if let Err(e) = request.respond(response) {
-                log::error!("[Error] Could not send response: {}", e);
             }
         });
     }
