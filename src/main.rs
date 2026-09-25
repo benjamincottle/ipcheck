@@ -1,14 +1,16 @@
 mod healthcheck;
 
 use std::{env, io::Cursor, sync::Arc, thread};
+use subtle::ConstantTimeEq;
 use tiny_http::{Request, Response, Server};
 
 fn request_is_authorised(request: &Request) -> bool {
     let api_key = request.headers().iter().find(|h| h.field.equiv("API_KEY"));
     match api_key {
         Some(api_key) => {
-            api_key.value
-                == env::var("API_KEY").expect("[Error] API_KEY environment variable not set")
+            let expected =
+                env::var("API_KEY").expect("[Error] API_KEY environment variable not set");
+            api_key.value.as_bytes().ct_eq(expected.as_bytes()).into()
         }
         None => false,
     }
