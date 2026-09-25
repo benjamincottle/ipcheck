@@ -17,4 +17,8 @@ COPY --from=builder /app/target/release/ipcheck /app/ipcheck
 
 USER 65532:65532
 EXPOSE 5000
+# Exec form: the distroless image has no shell. The binary probes its own
+# listener with an OPTIONS request (see `--healthcheck` in healthcheck.rs).
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD ["/app/ipcheck", "--healthcheck"]
 CMD ["./ipcheck"]

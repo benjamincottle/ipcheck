@@ -1,3 +1,5 @@
+mod healthcheck;
+
 use std::{env, io::Cursor, sync::Arc, thread};
 use tiny_http::{Request, Response, Server};
 
@@ -42,12 +44,15 @@ fn log_request(request: &tiny_http::Request, status: u16, size: usize) {
 }
 
 fn main() {
+    if env::args().nth(1).as_deref() == Some("--healthcheck") {
+        healthcheck::run();
+    }
     env_logger::init();
     if env::var("API_KEY").is_err() {
         log::error!("[Error] API_KEY environment variable not set");
         return;
     }
-    let server = Server::http("0.0.0.0:5000").expect("[Error] Could not start server");
+    let server = Server::http(healthcheck::BIND_ADDR).expect("[Error] Could not start server");
     let server = Arc::new(server);
 
     for _ in 0..4 {
@@ -61,6 +66,11 @@ fn main() {
                         continue;
                     }
                 };
+
+                if healthcheck::is_self_probe(&request) {
+                    healthcheck::respond(request);
+                    continue;
+                }
 
                 let response = if !request_is_authorised(&request) {
                     let response = Response::new(
