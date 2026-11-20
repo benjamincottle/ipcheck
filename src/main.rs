@@ -17,7 +17,7 @@ fn request_is_authorised(request: &Request) -> bool {
 }
 
 fn log_request(request: &tiny_http::Request, status: u16, size: usize) {
-    let date_time = chrono::Local::now().format("%d/%b/%Y:%H:%M:%S %z");
+    let date_time = jiff::ZonedDateTime::now().strftime("%d/%b/%Y:%H:%M:%S %z");
     let method = request.method();
     let uri = request.url();
     let protocol = request.http_version();
